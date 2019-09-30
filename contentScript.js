@@ -6,7 +6,7 @@ var itemselectClickHandler = function (element, e) {
     ProcessMode();
 }
 
-var columnTextSelectClickHandler = function(element, e){
+var columnTextSelectClickHandler = function (element, e) {
     e.preventDefault();
     _itemColumnSelected = elementIdentifier(element);
     _itemColumnSelectedElement = element;
@@ -15,7 +15,8 @@ var columnTextSelectClickHandler = function(element, e){
 }
 
 function elementIdentifier(element) {
-    var label = element.tagName.toLowerCase();
+    if (!element) return '';
+    var label = (element.tagName||'').toLowerCase();
     if (element.id) {
         label += '#' + element.id;
     }
@@ -39,6 +40,50 @@ function ProcessMode() {
             myDomOutline = DomOutline({ onClick: columnTextSelectClickHandler, filter: false, compileLabelText: _columnSelectedLabelText });
             myDomOutline.start();
             break;
+        case null:
+            myDomOutline.stop();
+            _mode = null;
+            _itemSelected = null;
+            _itemSelectedElement = null;
+            _itemColumnSelected = null;
+            _itemColumnSelectedElement = null;
+            _columns = [];
+            $('#itemselect').show();
+            $('.xstriped thead').html('');
+            $('.xstriped tbody').html('');
+            break;
+        case "columnTextSelected":
+            myDomOutline.stop();
+            break;
+        case "addColumn":
+            if ($('#Column').val()) {
+                _columns = _columns || [];
+                _columns.push({
+                    Name: $('#Column').val(),
+                    SelectionElement: _itemColumnSelectedElement,
+                    BoxElement: _itemSelectedElement,
+                    Index:$(_itemSelectedElement).find(elementIdentifier(_itemColumnSelectedElement)).index($(_itemColumnSelectedElement))
+                });
+                var _columnsheader =`<tr>${_columns.map(e=>`<th>${e.Name}</th>`).join()}</tr>`;
+                $('.xstriped thead').html(_columnsheader);
+                var rows='';
+                var _itemSelectedElementTemp=elementIdentifier(_itemSelectedElement);
+                var rowsItems =$(elementIdentifier(_itemSelectedElement.parentElement)+'>'+_itemSelectedElementTemp);
+                debugger
+                rowsItems=rowsItems.filter((i,f)=>elementIdentifier(f)==_itemSelectedElementTemp);
+                for(var i =0;i<Math.min(rowsItems.length,5);i++){
+                    var text=[];
+                    for(var j=0;j<_columns.length;j++){
+                        text.push($(rowsItems[i]).find(elementIdentifier(_columns[j].SelectionElement)).eq(_columns[j].Index).text()) ;
+                    }
+                    rows+=  `<tr>${text.map(e=>`<td>${e}</td>`).join()}</tr>`
+                }
+                $('.xstriped tbody').html(rows);
+                $('#Column').val('');
+            } else {
+                 alert('Column Name Not Provided!') ;
+                }
+            break;
         default:
             debugger;
             console.log("mode unknown", _mode);
@@ -51,7 +96,8 @@ function ProcessMode() {
 
 
 function _itemselectLabelText(element, width, height) {
-    var label = element.tagName.toLowerCase();
+    if (!element) return '';
+    var label = (element.tagName||'').toLowerCase();
     if (element.id) {
         label += '#' + element.id;
     }
@@ -70,7 +116,7 @@ function _columnSelectedLabelText(element) {
     if (element.className) {
         label += ('.' + jQuery.trim(element.className).replace(/ /g, '.')).replace(/\.\.+/g, '.');
     }
-    var x=$(element).text().trim();
+    var x = $(element).text().trim();
     return x;
 }
 
@@ -83,48 +129,64 @@ console.log('contentScript')
 var _mode = null;
 var _itemSelected = null;
 var _itemSelectedElement = null;
-var _itemColumnSelected =null;
-var _itemColumnSelectedElement =null;
+var _itemColumnSelected = null;
+var _itemColumnSelectedElement = null;
+var _columns = [];
 window.onload = function () {
     $('body').append(`<div class="xrow xwraper" >
     <div class="xinput-field xcol xs12">
-        <a class="xwaves-effect xwaves-light xbtn" id="reset">Reset</a>
-        <a class="xwaves-effect xwaves-light xbtn" id="itemselect">Select Single Item</a>
+        <button class="xwaves-effect xwaves-light xbtn" id="reset">Reset</button>
+        <button class="xwaves-effect xwaves-light xbtn" id="itemselect">Select Single Item</button>
     </div>
     <div class="xinput-field xcol xs8">
         <input id="Column" class="xvalidate">
         <label for="Column">Column Name</label>
     </div>
     <div class="xinput-field xcol xs2">
-    <a class="xwaves-effect xwaves-light xbtn-small" id="columnText"><i class="xmaterial-icons ">insert_link</i>Select Text</a>
+    <button class="xwaves-effect xwaves-light xbtn-small" id="columnText"><i class="xmaterial-icons ">insert_link</i>Select Text</button>
     </div>
     <div class="xinput-field xcol xs2">
-        <a class="xwaves-effect xwaves-light xbtn-small"><i class="xmaterial-icons">add</i> Add Column</a>
+        <button class="xwaves-effect xwaves-light xbtn-small" id="addColumn"><i class="xmaterial-icons">add</i> Add Column</button>
     </div>
-    <table class="xstriped">
+    <table class="xstriped"><thead>
+  </thead>
         <tbody>
-            <tr>
+           <!-- <tr>
                 <td>Alvin</td>
                 <td>Eclair</td>
                 <td>$0.87</td>
-            </tr>
+            </tr>-->
         </tbody>
     </table>
 </div>`);
     jQuery('#reset').on('click', function () {
-        debugger
-        console.log(1);
+        _mode = null;
+        ProcessMode();
     });
 
     jQuery('#itemselect').on('click', function (e) {
         _mode = 'itemselect';
-        ProcessMode()
+        ProcessMode();
     });
 
 
     jQuery('#columnText').on('click', function (e) {
         _mode = 'columnTextSelect';
-        ProcessMode()
+        ProcessMode();
+    });
+
+    jQuery('#addColumn').on('click', function (e) {
+        _mode = 'addColumn';
+        ProcessMode();
+    });
+
+
+    jQuery('a').on('click', function (e) {
+        if (_mode == "columnTextSelect") {
+            columnTextSelectClickHandler(e.currentTarget, e);
+        } else if ("itemselect" == _mode) {
+            e.preventDefault();
+        }
     });
 }
 var myDomOutline = DomOutline({ onClick: itemselectClickHandler, filter: ':not(div.xrow.xwraper>*)', compileLabelText: _itemselectLabelText });
