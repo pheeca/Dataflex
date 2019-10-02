@@ -4,19 +4,19 @@
   "version": "0.0.1",
   "description": "Simple to use data scraper",
   "icons": {
-    "128":"images/128.png",
-    "48":"images/48.png",
-    "32":"images/32.png",
-    "16":"images/16.png"
+    "128":"images/newicons/128.png",
+    "48":"images/newicons/48.png",
+    "32":"images/newicons/32.png",
+    "16":"images/newicons/16.png"
   },
-  "permissions": ["tabs", "http://*/", "https://*/"],
+  "permissions": ["tabs", "http://*/", "https://*/","storage"],
   "browser_action":{
-      "default_icon":"images/16.png",
+      "default_icon":"images/newicons/16.png",
       "default_popup": "popup.html"
   },
   "content_scripts":[{
     "matches": ["*://*/*"],
     "js":["jquery-3.4.1.slim.min.js","DomOutline.js","contentScript.js"],
-    "css":["contentStyles.css","materializemodified.min.css"]
+    "css":["contentStyles.css"]
   }]
 }
