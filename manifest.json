@@ -16,7 +16,7 @@
   },
   "content_scripts":[{
     "matches": ["*://*/*"],
-    "js":["jquery-3.4.1.slim.min.js","DomOutline.js","contentScript.js"],
+    "js":["jquery-3.4.1.min.js","DomOutline.js","contentScript.js"],
     "css":["contentStyles.css"]
   }]
 }

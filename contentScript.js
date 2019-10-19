@@ -67,10 +67,12 @@ function ProcessMode() {
             $('#itemselect').hide();
             break;
         case "columnTextSelect":
-            myDomOutline = DomOutline({ onClick: columnTextSelectClickHandler, filter: false, compileLabelText: _itemselectLabelText });
+            myDomOutline = DomOutline({ onClick: columnTextSelectClickHandler, filter: false, compileLabelText: _columnSelectedLabelText });
             myDomOutline.start();
             break;
         case null:
+            debugger
+            chrome.storage.local.clear()
             myDomOutline.stop();
             _mode = null;
             _itemSelected = null;
@@ -78,7 +80,7 @@ function ProcessMode() {
             _itemColumnSelected = null;
             _itemColumnSelectedElement = null;
             _columns = [];
-            $('#itemselect').show();
+            jQuery('#columnText,#addColumn,#reset,#itemselect').show();
             $('#StartScrapping,#SelectNextPage').hide();
             $('.xstriped thead').html('');
             $('.xstriped tbody').html('');
@@ -99,6 +101,7 @@ function ProcessMode() {
             myDomOutline.stop();
             break;
         case "scrapping":
+            jQuery('#SelectNextPage,#StartScrapping,#columnText,#addColumn,#reset,#itemselect').hide();
             scrape()
             break;
         default:
@@ -110,10 +113,10 @@ function ProcessMode() {
 var _rows = [];
 function scrape() {
     chrome.storage.local.get(["columns", "selectNextPageElement", "rows", "url"], function (_data) {
-        if (window.location.href !== _data.url) {
+        if (window.location.host == _data.url) {
             _rows = _rows || _data.rows || [];
             _columns = _columns || _data.columns || [];
-            selectNextPageElement = selectNextPageElement || _data.selectNextPageElement || {};
+            selectNextPageElement = selectNextPageElement || _data.selectNextPageElement || null;
             var rowsItems = $(_columns[0].BoxElement).filter((i, f) => elementIdentifier(f) == _columns[0].BoxElement.split('>')[1])
             for (var i = 0; i < rowsItems.length; i++) {
                 var text = [];
@@ -122,7 +125,7 @@ function scrape() {
                 }
                 _rows.push(text);
             }
-            var data = { columns: _columns, selectNextPageElement: selectNextPageElement, rows: _rows, url: window.location.href };
+            var data = { columns: _columns, selectNextPageElement: selectNextPageElement, rows: _rows, url: window.location.host };
             chrome.storage.local.set(data);
             scrapeNext();
         } else {
@@ -131,18 +134,59 @@ function scrape() {
     });
 }
 function scrapeNext() {
+
     chrome.storage.local.get(["columns", "selectNextPageElement", "rows", "url"], function (_data) {
-        var nextSelector = _data.selectNextPageElement.selectNextPage + _data.selectNextPageElement.selectNextPageN;
-        if (_data.selectNextPageElement.N > -1) {
-            _data.selectNextPageElement.N++;
-            _data.selectNextPageElement.selectNextPageN = `:contains(${selectNextPageElement.N}):first`;
+        if (_data.selectNextPageElement) {
+            var nextSelector = _data.selectNextPageElement.selectNextPage + _data.selectNextPageElement.selectNextPageN;
+            if (_data.selectNextPageElement.N > -1) {
+                _data.selectNextPageElement.N++;
+                _data.selectNextPageElement.selectNextPageN = `:contains(${selectNextPageElement.N}):first`;
+            }
+            debugger
+            chrome.storage.local.set(_data);
+            redirect(`${nextSelector},${nextSelector} *`);
+        } else {
+            endScrapping();
         }
-        chrome.storage.local.set(_data);
-        debugger
-        $(nextSelector).click();
     });
+    function redirect(nextSelector) {
+        var nextSelection = $(nextSelector);
+        if (nextSelection.is('a')) {
+            var nexturl = nextSelection.attr('href');
+            if (nexturl) {
+                window.location.href = nexturl;
+            } else {
+                debugger;
+                redirect(nextSelection.parent());
+            }
+        } else {
+            nextSelection.click();
+        }
+    }
 }
 
+function endScrapping() {
+    chrome.storage.local.get(["columns", "selectNextPageElement", "rows", "url"], function (_data) {
+        debugger
+        let text = _data.columns.map(e => e.Name).toLocaleString();
+        for (var i = 0; i < _data.rows.length; i++) {
+            text += "\r\n" + _data.rows[i].toLocaleString();
+        }
+        download("downloadfile.csv", text);
+    });
+}
+function download(filename, text) {
+    var element = document.createElement('a');
+    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+    element.setAttribute('download', filename);
+
+    element.style.display = 'none';
+    document.body.appendChild(element);
+
+    element.click();
+
+    document.body.removeChild(element);
+}
 function addColumn() {
     if ($('#Column').val()) {
         _columns = _columns || [];
@@ -183,7 +227,6 @@ function _itemselectLabelText(element, width, height) {
     if (element.className) {
         label += ('.' + jQuery.trim(element.className).replace(/ /g, '.')).replace(/\.\.+/g, '.');
     }
-    //return label + ' (' + Math.round(width) + 'x' + Math.round(height) + ')';
     return label + ' (Items Count:' + jQuery(label).length + ')';
 }
 
@@ -196,6 +239,8 @@ function _columnSelectedLabelText(element) {
         label += ('.' + jQuery.trim(element.className).replace(/ /g, '.')).replace(/\.\.+/g, '.');
     }
     var x = $(element).text().trim();
+    let n = 25;
+    x = (x.length > n) ? x.substr(0, n - 1) + '...' : x;
     return x;
 }
 
@@ -235,7 +280,6 @@ window.onload = function () {
     </table>
 </div>`);
 
-    ProcessMode();
     jQuery('#reset').on('click', function () {
         _mode = null;
         ProcessMode();
@@ -262,19 +306,33 @@ window.onload = function () {
         if (_mode !== 'scrapping') {
             if (_mode == "columnTextSelect") {
                 columnTextSelectClickHandler(e.currentTarget, e);
+                e.stopPropagation();
             } else if ("itemselect" == _mode) {
                 e.preventDefault();
+                e.stopPropagation();
             } else if ("selectNextPage" == _mode) {
                 selectNextPageClickHandler(e.currentTarget, e);
+                //  e.stopPropagation();
 
+            } else {
             }
-            e.stopPropagation();
+        } else {
         }
     });
 
     jQuery('#StartScrapping').on('click', function (e) {
-        _mode = 'scrapping';
-        ProcessMode();
+        //warning for next page
+       // chrome.tabs.query(window.location.origin, function (tabs) {
+            // if no tab found, open a new one
+            debugger
+        //    if (tabs.length > 1) {
+
+        //    } else {
+                _mode = 'scrapping';
+                ProcessMode();
+         //   }
+        //});
+
     });
 
     jQuery('#SelectNextPage').on('click', function (e) {
@@ -287,8 +345,8 @@ window.onload = function () {
         selectNextPageElement = _data.selectNextPageElement || selectNextPageElement || null;
         if (_columns.length > 0) {
             _mode = 'scrapping';
-            ProcessMode();
         }
+        ProcessMode();
     });
 }
 var myDomOutline = DomOutline({ onClick: itemselectClickHandler, filter: '*:not(div.xwraper,div.xwraper *)', compileLabelText: _itemselectLabelText });
