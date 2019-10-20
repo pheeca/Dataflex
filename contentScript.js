@@ -71,17 +71,18 @@ function ProcessMode() {
             myDomOutline.start();
             break;
         case null:
-            debugger
             chrome.storage.local.clear()
             myDomOutline.stop();
+            maxNextPage = null;
+            currentPage = 0;
             _mode = null;
             _itemSelected = null;
             _itemSelectedElement = null;
             _itemColumnSelected = null;
             _itemColumnSelectedElement = null;
             _columns = [];
-            jQuery('#columnText,#addColumn,#reset,#itemselect').show();
-            $('#StartScrapping,#SelectNextPage').hide();
+            jQuery('#columnText,#addColumn,#reset,#itemselect,#sr').show();
+            $('#StartScrapping,#SelectNextPage,#maxpages').hide();
             $('.xstriped thead').html('');
             $('.xstriped tbody').html('');
             selectNextPageElement = null;
@@ -99,9 +100,11 @@ function ProcessMode() {
             break;
         case "nextPageSelected":
             myDomOutline.stop();
+            $('#maxpages').show();
+            $('#maxpages').val(0);
             break;
         case "scrapping":
-            jQuery('#SelectNextPage,#StartScrapping,#columnText,#addColumn,#reset,#itemselect').hide();
+            jQuery('#SelectNextPage,#StartScrapping,#columnText,#addColumn,#reset,#itemselect,#maxpages,#sr').hide();
             scrape()
             break;
         default:
@@ -112,8 +115,8 @@ function ProcessMode() {
 }
 var _rows = [];
 function scrape() {
-    chrome.storage.local.get(["columns", "selectNextPageElement", "rows", "url"], function (_data) {
-        if (window.location.host == _data.url) {
+    chrome.storage.local.get(["columns", "selectNextPageElement", "rows", "url","currentPage","maxNextPage"], function (_data) {
+        if (!_data.url || window.location.host == _data.url) {
             _rows = _rows || _data.rows || [];
             _columns = _columns || _data.columns || [];
             selectNextPageElement = selectNextPageElement || _data.selectNextPageElement || null;
@@ -133,16 +136,29 @@ function scrape() {
         }
     });
 }
+let maxNextPage = null;
+let currentPage = 0;
 function scrapeNext() {
 
-    chrome.storage.local.get(["columns", "selectNextPageElement", "rows", "url"], function (_data) {
+    chrome.storage.local.get(["columns", "selectNextPageElement", "rows", "url","currentPage","maxNextPage"], function (_data) {
         if (_data.selectNextPageElement) {
-            var nextSelector = _data.selectNextPageElement.selectNextPage + _data.selectNextPageElement.selectNextPageN;
             if (_data.selectNextPageElement.N > -1) {
-                _data.selectNextPageElement.N++;
                 _data.selectNextPageElement.selectNextPageN = `:contains(${selectNextPageElement.N}):first`;
+                _data.selectNextPageElement.N++;
             }
-            debugger
+            var nextSelector = _data.selectNextPageElement.selectNextPage + _data.selectNextPageElement.selectNextPageN;
+            maxNextPage = _data.maxNextPage||maxNextPage;
+            _data.maxNextPage = maxNextPage;
+            
+            currentPage = _data.currentPage||currentPage;
+            _data.currentPage = currentPage;
+
+            if(maxNextPage && _data.currentPage>=maxNextPage){
+                endScrapping();
+                return;
+            }else{
+                _data.currentPage++;
+            }
             chrome.storage.local.set(_data);
             redirect(`${nextSelector},${nextSelector} *`);
         } else {
@@ -151,12 +167,15 @@ function scrapeNext() {
     });
     function redirect(nextSelector) {
         var nextSelection = $(nextSelector);
+        if(nextSelection.length==0){
+            endScrapping();
+            return;
+        }
         if (nextSelection.is('a')) {
             var nexturl = nextSelection.attr('href');
             if (nexturl) {
                 window.location.href = nexturl;
             } else {
-                debugger;
                 redirect(nextSelection.parent());
             }
         } else {
@@ -166,13 +185,18 @@ function scrapeNext() {
 }
 
 function endScrapping() {
-    chrome.storage.local.get(["columns", "selectNextPageElement", "rows", "url"], function (_data) {
-        debugger
-        let text = _data.columns.map(e => e.Name).toLocaleString();
+    chrome.storage.local.get(["columns", "selectNextPageElement", "rows", "url","currentPage","maxNextPage"], function (_data) {
+        let text='';
+        if($('#sr').is(':checked')){
+            text+='Sr #,';
+        }
+        text += _data.columns.map(e => `"${e.Name}"`).toLocaleString();
         for (var i = 0; i < _data.rows.length; i++) {
-            text += "\r\n" + _data.rows[i].toLocaleString();
+            text += "\r\n"+($('#sr').is(':checked')?`"${i+1}",`:'') + Object.values(_data.rows[i]).map(value  => `"${value }"`).toLocaleString();
         }
         download("downloadfile.csv", text);
+        _mode = null;
+        ProcessMode();
     });
 }
 function download(filename, text) {
@@ -211,7 +235,8 @@ function addColumn() {
         }
         $('.xstriped tbody').html(rows);
         $('#Column').val('');
-        $('#StartScrapping,#SelectNextPage').show();
+        $('#StartScrapping,#SelectNextPage,#maxpages').show();
+        $('#maxpages').val(0);
     } else {
         alert('Column Name Not Provided!');
     }
@@ -263,6 +288,7 @@ window.onload = function () {
         <button class="xwaves-effect xwaves-light xbtn" id="itemselect">Select Single Item</button>
         <button class="xwaves-effect xwaves-light xbtn" id="StartScrapping">Start Scrapping</button>
         <button class="xwaves-effect xwaves-light xbtn" id="SelectNextPage">Select Next Page</button>
+        <input type="number" id="maxpages" >
     </div><div class="xrow">
     <div class="text-input xinput-field">
   <input type="text" id="Column" >
@@ -271,6 +297,8 @@ window.onload = function () {
     <div class="xinput-field">
     <button class="xwaves-effect xwaves-light xbtn-small" id="columnText">Select Text</button>
     <button class="xwaves-effect xwaves-light xbtn-small" id="addColumn">Add Column</button>
+    <input type="checkbox" id="sr" >
+    <label for="input1">Sr #</label>
     </div>
     </div>
     <table class="xstriped"><thead>
@@ -324,7 +352,6 @@ window.onload = function () {
         //warning for next page
        // chrome.tabs.query(window.location.origin, function (tabs) {
             // if no tab found, open a new one
-            debugger
         //    if (tabs.length > 1) {
 
         //    } else {
@@ -334,17 +361,20 @@ window.onload = function () {
         //});
 
     });
-
+    jQuery('#maxpages').on('change', function (e) {
+       maxNextPage= parseInt(jQuery('#maxpages').val());
+    });
     jQuery('#SelectNextPage').on('click', function (e) {
         _mode = 'selectNextPage';
         ProcessMode();
     });
-    chrome.storage.local.get(["columns", "selectNextPageElement", "rows", "url"], function (_data) {
+    chrome.storage.local.get(["columns", "selectNextPageElement", "rows", "url","currentPage","maxNextPage"], function (_data) {
         _rows = _data.rows || _rows || [];
         _columns = _data.columns || _columns || [];
         selectNextPageElement = _data.selectNextPageElement || selectNextPageElement || null;
         if (_columns.length > 0) {
             _mode = 'scrapping';
+            $('.xstriped tbody').html(`<tr><td>${_rows.length} rows collected</td></tr>`)
         }
         ProcessMode();
     });

@@ -92,7 +92,7 @@ var DomOutline = function (options) {
     }
 
     function updateOutlinePosition(e) {
-        if ((e.target.className||'').indexOf(self.opts.namespace) !== -1) {
+        if (typeof(e.target.className)!=='object' && (e.target.className||'').indexOf(self.opts.namespace) !== -1) {
             return;
         }
         if (self.opts.filter) {
